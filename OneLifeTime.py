@@ -1,83 +1,93 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from dateutil import tz, relativedelta
+from dateutil import relativedelta
 import pytz
 import time
 import streamlit.components.v1 as components
 
-# Page configuration
+# Page config
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
 st.title("OneLifeTime")
-st.write("Calculate how many seconds you have left based on your birth data and life expectancy.")
+st.write("Calculate how many seconds you have left based on your birth data.")
 
 @st.cache_data
-def load_life_expectancy():
-    try:
-        df = pd.read_excel("world-lifeexpectancy.xlsx")
-        # Normalize column names
-        if 'Country' not in df.columns:
-            country_col = next((c for c in df.columns if 'country' in c.lower()), None)
-            if country_col:
-                df = df.rename(columns={country_col: 'Country'})
-        female_col = next((c for c in df.columns if 'female' in c.lower()), None)
-        male_col = next((c for c in df.columns if 'male' in c.lower()), None)
-        if female_col:
-            df = df.rename(columns={female_col: 'Females Life Expectancy'})
-        if male_col:
-            df = df.rename(columns={male_col: 'Males Life Expectancy'})
-        return df[['Country', 'Females Life Expectancy', 'Males Life Expectancy']]
-    except Exception:
-        data = {
-            "Country": ["USA", "Japan", "India", "Brazil", "Nigeria"],
-            "Females Life Expectancy": [81.1, 87.5, 70.7, 79.4, 65.2],
-            "Males Life Expectancy": [76.1, 81.1, 68.2, 72.8, 62.7]
-        }
-        return pd.DataFrame(data)
+def load_life_expectancy(uploaded_file):
+    if uploaded_file is not None:
+        df = pd.read_excel(uploaded_file)
+    else:
+        try:
+            df = pd.read_excel("world-lifeexpectancy.xlsx")
+        except FileNotFoundError:
+            # fallback sample
+            data = {
+                "Country": ["USA", "Japan", "India", "Brazil", "Nigeria"],
+                "Females Life Expectancy": [81.1, 87.5, 70.7, 79.4, 65.2],
+                "Males Life Expectancy": [76.1, 81.1, 68.2, 72.8, 62.7]
+            }
+            return pd.DataFrame(data)
 
-life_df = load_life_expectancy()
+    # normalize column names
+    if 'Country' not in df.columns:
+        country_col = next((c for c in df.columns if 'country' in c.lower()), None)
+        if country_col:
+            df = df.rename(columns={country_col: 'Country'})
+    female_col = next((c for c in df.columns if 'female' in c.lower()), None)
+    male_col   = next((c for c in df.columns if 'male'   in c.lower()), None)
+    if female_col:
+        df = df.rename(columns={female_col: 'Females Life Expectancy'})
+    if male_col:
+        df = df.rename(columns={male_col:   'Males Life Expectancy'})
+    return df[['Country', 'Females Life Expectancy', 'Males Life Expectancy']]
 
-# User inputs
+# allow uploading the real dataset if not checked into your repo
+upload = st.file_uploader("Upload world-lifeexpectancy.xlsx", type=["xlsx"])
+life_df = load_life_expectancy(upload)
+
+# --- USER INPUTS ---
 col1, col2 = st.columns(2)
 with col1:
     country = st.selectbox("Select your country", sorted(life_df["Country"].unique()))
-    sex = st.radio("Select your sex", ["Male", "Female"])
-    birth_date = st.date_input("Birth date", min_value=datetime(1900, 1, 1))
-    birth_time = st.time_input("Birth time")
-    tz_name = st.selectbox("Select your time zone", pytz.common_timezones, index= pytz.common_timezones.index("UTC"))
-    include_js = st.checkbox("Use JavaScript live countdown", value=True)
+    sex     = st.radio("Select your sex", ["Male", "Female"])
+    bdate   = st.date_input("Birth date", min_value=datetime(1900,1,1))
+    btime   = st.time_input("Birth time")
+    tz_name = st.selectbox("Time zone", pytz.common_timezones, index=pytz.common_timezones.index("UTC"))
+    use_js  = st.checkbox("Use JavaScript live countdown", value=True)
 
-with col2:
-    row = life_df[life_df["Country"] == country].iloc[0]
-    le = row["Males Life Expectancy"] if sex=="Male" else row["Females Life Expectancy"]
-    st.info(f"Life expectancy for {sex.lower()}s in {country}: {le:.1f} years")
+# grab expectancy internally
+row = life_df[life_df["Country"]==country].iloc[0]
+life_expectancy = row["Males Life Expectancy"] if sex=="Male" else row["Females Life Expectancy"]
 
+# --- CALCULATION & DISPLAY ---
 if st.button("Calculate Life Deadline"):
-    user_tz = pytz.timezone(tz_name)
-    birth_dt = user_tz.localize(datetime.combine(birth_date, birth_time))
-    now_dt = datetime.now(user_tz)
+    user_tz  = pytz.timezone(tz_name)
+    birth_dt = user_tz.localize(datetime.combine(bdate, btime))
+    now_dt   = datetime.now(user_tz)
 
-    years_int = int(le)
-    days_frac = (le - years_int) * 365.25
-    death_dt = birth_dt + relativedelta.relativedelta(years=years_int)
-    death_dt += timedelta(days=days_frac)
+    # compute death datetime
+    years_int = int(life_expectancy)
+    days_frac = (life_expectancy - years_int) * 365.25
+    death_dt  = (birth_dt 
+                 + relativedelta.relativedelta(years=years_int) 
+                 + timedelta(days=days_frac))
 
     seconds_lived = (now_dt - birth_dt).total_seconds()
-    seconds_left = (death_dt - now_dt).total_seconds()
+    seconds_left  = (death_dt - now_dt).total_seconds()
 
+    # metrics
     st.subheader("Your Life in Seconds")
     c1, c2 = st.columns(2)
     with c1:
         st.metric("Seconds Lived", f"{int(seconds_lived):,}")
-        st.write(f"~ {seconds_lived/(365.25*24*3600):.2f} years")
+        st.write(f"~{seconds_lived/(365.25*24*3600):.2f} years")
     with c2:
         st.metric("Seconds Left", f"{int(seconds_left):,}")
-        st.write(f"~ {seconds_left/(365.25*24*3600):.2f} years")
+        st.write(f"~{seconds_left/(365.25*24*3600):.2f} years")
 
+    # live countdown
     st.subheader("Live Countdown")
-    if include_js:
-        # Escape braces {{ }} inside an f-string so Python doesn’t think they’re its own
+    if use_js:
         html = f"""
         <div style="font-size:2.5em; text-align:center;" id="timer">{int(seconds_left):,}</div>
         <script>
@@ -96,6 +106,7 @@ if st.button("Calculate Life Deadline"):
             placeholder.metric("Seconds Left (Live Demo)", f"{int(seconds_left):,}")
             time.sleep(1)
 
+    # comparison tables
     st.subheader("Life Expectancy Comparison")
     left, right = st.columns(2)
     sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
