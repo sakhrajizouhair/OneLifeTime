@@ -170,7 +170,7 @@ if st.button("Calculate My Life Time"):
         <table>
           <thead>
             <tr>
-              <th>Country</th><th>Seconds Left</th><th>Projected Death</th>
+              <th>Country</th><th>Seconds Center</th><th>Projected Death</th>
             </tr>
           </thead>
           <tbody>
