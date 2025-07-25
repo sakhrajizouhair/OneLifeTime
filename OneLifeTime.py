@@ -200,3 +200,8 @@ if st.button("Calculate My Life Time"):
     with colB:
         st.markdown("**Bottom 5 Countries**")
         components.html(build_projection_html(bot5, "bot"), height=300)
+
+
+    # --- Logo at the Bottom as Cover Photo ---
+    st.markdown("---")
+    st.image("logo.jpg", use_column_width=True)
