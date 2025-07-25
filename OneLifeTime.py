@@ -11,10 +11,10 @@ st.set_page_config(page_title="OneLifeTime", layout="wide")
 # --- Global CSS for Button & Table Text Colors ---
 st.markdown("""
 <style>
-  /* Make the primary button green with black text */
+  /* Make the primary button green with gray text */
   div.stButton > button {
     background-color: #4CAF50 !important;
-    color: black !important;
+    color: gray !important;
     border: none !important;
   }
   /* Force all in‐app tables to show white text */
