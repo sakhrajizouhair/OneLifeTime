@@ -238,6 +238,47 @@ if st.button("Calculate My Life Time"):
 
     # --- Footer Text ---
     st.markdown("---")
+
+      # --- Conclusion ---
+    # 1) Summarize adjustments
+    adjustments = []
+    if gym == "Yes":
+        gym_delta = { 
+            "Less than a year": 1,
+            "Between 1 and 3 years": 4,
+            "More than 3 years": 7
+        }[gym_since]
+        adjustments.append(f"Gym: +{gym_delta} yr")
+    if smoke == "Yes":
+        smoke_delta = {
+            "Less than a year": -1,
+            "Between 1 and 5 years": -3,
+            "Between 5 and 10 years": -5,
+            "More than 10 years": -10
+        }[smoke_since]
+        adjustments.append(f"Smoking: {smoke_delta} yr")
+    if cancer == "Yes":
+        adjustments.append("Cancer: -8 yr")
+    if not adjustments:
+        adjustments.append("No lifestyle adjustments")
+
+    # 2) Compute percentages
+    total_secs = sec_lived + sec_left
+    pct_lived = sec_lived / total_secs * 100
+
+    # 3) Render the conclusion
+    st.markdown("---")
+    st.markdown("## Conclusion")
+    st.markdown(f"""
+- Adjusted life expectancy: **{effective_le:.1f} years**  
+  *(Details: {'; '.join(adjustments)})*
+
+- You have **lived** {sec_lived:,} seconds (~{sec_lived/(365.25*24*3600):.2f} yr), **{pct_lived:.1f}%** of your adjusted expectancy.  
+- You have **{sec_left:,} seconds** (~{sec_left/(365.25*24*3600):.2f} yr) remaining.
+
+> Every second is precious—make each one count!
+""".replace(",", " "))
+
     st.markdown(
         "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
         unsafe_allow_html=True
