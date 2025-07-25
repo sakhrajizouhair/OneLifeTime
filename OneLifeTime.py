@@ -18,7 +18,7 @@ def load_data(filename: str) -> pd.DataFrame:
     return df
 
 # replace with your actual Excel filename
-df = load_data('worlld-lifeexpectancy.xlsx')
+df = load_data('world-lifeexpectancy.xlsx')
 
 # 2. Build the HTML + JS snippet with white text styling
 def build_projection_html(
