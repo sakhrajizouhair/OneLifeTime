@@ -5,20 +5,22 @@ from dateutil import relativedelta
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. Robust loader: always resolves path relative to this script
+# 1. Robust loader: resolves path relative to this script and reads Excel
 @st.cache_data
 def load_data(filename: str) -> pd.DataFrame:
     here = Path(__file__).parent
-    csv_path = here / filename
-    st.write("Loading CSV from:", csv_path)  # optional debug
-    df = pd.read_csv(csv_path)
+    file_path = here / filename
+    st.write("Loading data from:", file_path)   # optional debug
+    # read the first sheet by default
+    df = pd.read_excel(file_path)
     df = df.dropna(subset=['Life expectancy'])
     df = df.rename(columns={'Life expectancy': 'life_expectancy'})
     return df
 
-df = load_data('life_expectancy_by_country.csv')
+# replace with your actual Excel filename
+df = load_data('worlld-lifeexpectancy.xlsx')
 
-# 2. Build the HTML + JS snippet with white-text styling
+# 2. Build the HTML + JS snippet with white text styling
 def build_projection_html(
     df_slice: pd.DataFrame,
     now_dt: datetime,
@@ -31,25 +33,23 @@ def build_projection_html(
 
     for idx, r in df_slice.iterrows():
         le = r[sort_col]
-        # compute exact death datetime
-        dt = (
+        death_dt = (
             birth_dt
             + relativedelta.relativedelta(years=int(le))
             + timedelta(days=(le - int(le)) * 365.25)
         )
-        sl = int((dt - now_dt).total_seconds())
+        seconds_left = int((death_dt - now_dt).total_seconds())
         cell_id = f"{key_prefix}_t{idx}"
 
         rows.append(f"""
 <tr>
   <td>{r['Country']}</td>
-  <td id="{cell_id}">{sl}</td>
-  <td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>
+  <td id="{cell_id}">{seconds_left}</td>
+  <td>{death_dt.strftime('%Y-%m-%d %H:%M:%S')}</td>
 </tr>
 """)
-        js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
+        js_entries.append(f"{{id:'{cell_id}',cnt:{seconds_left}}}")
 
-    # inline style forces every table header & cell to white
     table_html = f"""
 <style>
   table {{
@@ -59,12 +59,12 @@ def build_projection_html(
   }}
   thead th {{
     background: #444;
-    color: white;
     padding: 8px;
+    color: white;
   }}
   td {{
-    color: white;
     padding: 8px;
+    color: white;
     border-top: 1px solid rgba(255,255,255,0.2);
   }}
 </style>
@@ -97,11 +97,13 @@ def build_projection_html(
 """
     return table_html + script
 
-# 3. Streamlit layout
+# 3. Streamlit app layout
 st.title("What If...? Your Deadline in Other Countries")
 
-birth_date = st.date_input("Enter your date of birth", datetime(1990, 1, 1).date())
-birth_time = st.time_input("Enter your time of birth", datetime.now().time())
+birth_date = st.date_input("Enter your date of birth",
+                           datetime(1990, 1, 1).date())
+birth_time = st.time_input("Enter your time of birth",
+                           datetime.now().time())
 birth_dt = datetime.combine(birth_date, birth_time)
 now_dt = datetime.now()
 
