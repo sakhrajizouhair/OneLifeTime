@@ -176,7 +176,7 @@ if st.button("Calculate My Life Time"):
     components.html(countdown_html, height=120)
 
     # --- Projections for Other Countries ---
-    st.subheader("What If…? You were in other extremes!")
+    st.subheader("What If…? You were in the EXTREME sides of the world!")
     sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
