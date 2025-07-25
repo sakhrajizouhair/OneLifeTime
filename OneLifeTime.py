@@ -25,7 +25,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("OneLifeTime")
-st.write("Calculate how many seconds you have lived and how many you have left.")
+st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
 
 # --- Fallback life‐expectancy data ---
 FALLBACK = pd.DataFrame({
@@ -75,7 +75,7 @@ with col2:
     life_exp = row["Males Life Expectancy"] if sex=="Male" else row["Females Life Expectancy"]
 
 # --- Main Calculation ---
-if st.button("Calculate Life Deadline"):
+if st.button("Calculate My Life Time"):
     user_tz  = pytz.timezone(tz_name)
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
     now_dt   = datetime.now(user_tz)
@@ -124,7 +124,7 @@ if st.button("Calculate Life Deadline"):
     components.html(countdown_html, height=120)
 
     # --- Projections for Other Countries ---
-    st.subheader("What If…? Your Deadline in Other Countries")
+    st.subheader("What If…? You were in the EXTREME of the world!")
     sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
@@ -195,8 +195,8 @@ if st.button("Calculate Life Deadline"):
 
     colA, colB = st.columns(2)
     with colA:
-        st.markdown("**Top 5 Countries by Life Expectancy**")
+        st.markdown("**Top 5 Countries**")
         components.html(build_projection_html(top5, "top"), height=300)
     with colB:
-        st.markdown("**Bottom 5 Countries by Life Expectancy**")
+        st.markdown("**Bottom 5 Countries**")
         components.html(build_projection_html(bot5, "bot"), height=300)
