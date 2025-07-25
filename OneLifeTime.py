@@ -236,6 +236,13 @@ if st.button("Calculate My Life Time"):
         st.markdown("**Bottom 5 Countries**")
         components.html(build_projection_html(bot5, "bot"), height=300)
 
+  # --- Footer Text ---
+    st.markdown("---")
+    st.markdown(
+        "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
+        unsafe_allow_html=True
+    )
+
     # --- Footer Text ---
     st.markdown("---")
 
