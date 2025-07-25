@@ -14,7 +14,7 @@ st.markdown("""
   /* Make the primary button green with black text */
   div.stButton > button {
     background-color: #4CAF50 !important;
-    color: black !important;
+    color: white !important;
     border: none !important;
   }
   /* Force all in‐app tables to show white text */
