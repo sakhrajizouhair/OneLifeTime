@@ -203,8 +203,8 @@ if st.button("Calculate My Life Time"):
 
         html = f"""
         <style>
-          table {{width:100%;border-collapse:collapse;color:white!important;}}
-          thead th {{background:#444;padding:8px;color:white!important;}}
+          table {{width:100%;border-collapse:collapse;color:gray!important;}}
+          thead th {{background:#444;padding:8px;color:gray!important;}}
           td {{padding:8px;border-top:1px solid rgba(255,255,255,0.2);}}
         </style>
         <table>
