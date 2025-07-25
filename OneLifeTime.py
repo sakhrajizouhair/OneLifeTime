@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
 st.title("OneLifeTime")
-st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
+st.write("Calculate how many seconds you have left based on your birth data.")
 
 # --- Data Loading & Normalization ---
 FALLBACK = pd.DataFrame({
@@ -25,7 +25,6 @@ def load_life_expectancy():
     except Exception:
         return FALLBACK
 
-    # Build a rename map by scanning headers
     col_map = {}
     for col in df.columns:
         lower = col.strip().lower()
@@ -52,13 +51,13 @@ with col1:
     sex     = st.radio("Select your sex", ["Male", "Female"])
     bdate   = st.date_input("Birth date", min_value=datetime(1900, 1, 1))
     btime   = st.time_input("Birth time")
-    tz_name = st.selectbox("Time zone", pytz.common_timezones, index=pytz.common_timezones.index("UTC"))
+    tz_name = st.selectbox("Time zone", pytz.common_timezones,
+                           index=pytz.common_timezones.index("UTC"))
 
 with col2:
-    row = life_df[life_df["Country"] == country].iloc[0]
-    life_exp = (row["Males Life Expectancy"] if sex == "Male"
-                else row["Females Life Expectancy"])
-    st.info(f"Life expectancy for {sex.lower()}s in {country}: {life_exp:.1f} years")
+    row       = life_df[life_df["Country"] == country].iloc[0]
+    life_exp  = (row["Males Life Expectancy"] if sex == "Male"
+                 else row["Females Life Expectancy"])
 
 # --- Main Calculation ---
 if st.button("Calculate Life Deadline"):
@@ -66,69 +65,99 @@ if st.button("Calculate Life Deadline"):
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
     now_dt   = datetime.now(user_tz)
 
-    # Compute own death datetime
-    years_int = int(life_exp)
-    days_frac = (life_exp - years_int) * 365.25
-    death_dt  = (birth_dt
-                 + relativedelta.relativedelta(years=years_int)
-                 + timedelta(days=days_frac))
-    seconds_lived = (now_dt - birth_dt).total_seconds()
-    seconds_left  = (death_dt - now_dt).total_seconds()
+    # Compute personal death datetime
+    years_int  = int(life_exp)
+    days_frac  = (life_exp - years_int) * 365.25
+    death_dt   = (birth_dt
+                  + relativedelta.relativedelta(years=years_int)
+                  + timedelta(days=days_frac))
+    sec_lived  = int((now_dt - birth_dt).total_seconds())
+    sec_left   = int((death_dt - now_dt).total_seconds())
 
-    # Display your metrics
-    st.subheader("Your Life in Seconds")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric("Seconds Lived", f"{int(seconds_lived):,}")
-        st.write(f"~{seconds_lived/(365.25*24*3600):.2f} years")
-    with c2:
-        st.metric("Seconds Left", f"{int(seconds_left):,}")
-        st.write(f"~{seconds_left/(365.25*24*3600):.2f} years")
-
-    # Optional: live JavaScript countdown
-    st.subheader("Live Countdown")
-    html = f"""
-    <div style="font-size:2.5em; text-align:center;" id="timer">{int(seconds_left):,}</div>
+    # --- Your Live Countdown ---
+    styled_now = f"{sec_left:,}".replace(",", " ")
+    countdown_html = f"""
+    <div style="
+      font-size:2.5em;
+      color: green;
+      background-color: #e6ffe6;
+      padding:10px;
+      border-radius:8px;
+      text-align:center;
+    " id="global_timer">{styled_now}</div>
     <script>
-    let count = {int(seconds_left)};
-    setInterval(()=>{{  
-        count--;
-        document.getElementById('timer').innerText = count.toLocaleString();
-    }}, 1000);
+      let countG = {sec_left};
+      setInterval(()=>{
+        countG--;
+        document.getElementById('global_timer')
+                .innerText = countG.toLocaleString('fr-FR');
+      }, 1000);
     </script>
     """
-    components.html(html, height=120)
+    st.subheader("Live Countdown")
+    components.html(countdown_html, height=120)
 
     # --- Projections for Other Countries ---
     st.subheader("What If…? Your Deadline in Other Countries")
-
     sort_col = ("Males Life Expectancy" if sex == "Male"
                 else "Females Life Expectancy")
 
-    def compute_projection(df_slice):
-        """Return DataFrame with Country, LifeExp, DeathDate, SecLeft."""
+    # Prepare top5 / bottom5 datasets
+    top5 = life_df.sort_values(sort_col, ascending=False).head(5)
+    bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
+
+    def build_projection_html(df_slice, key_prefix):
+        """Returns an HTML table with dynamic countdown cells."""
         rows = []
-        for _, r in df_slice.iterrows():
+        js_entries = []
+        for idx, r in df_slice.iterrows():
             le = r[sort_col]
             dt = (birth_dt
                   + relativedelta.relativedelta(years=int(le))
                   + timedelta(days=(le - int(le)) * 365.25))
-            sl = (dt - now_dt).total_seconds()
-            rows.append({
-                "Country": r["Country"],
-                "Life Expectancy": f"{le:.1f}",
-                "Projected Death": dt.strftime("%Y-%m-%d %H:%M:%S"),
-                "Seconds Left": int(sl)
-            })
-        return pd.DataFrame(rows)
+            sl = int((dt - now_dt).total_seconds())
+            cell_id = f"{key_prefix}_t{idx}"
+            rows.append(
+              f"<tr>"
+                f"<td>{r['Country']}</td>"
+                f"<td id='{cell_id}'>{str(sl).replace(',', ' ')}</td>"
+                f"<td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>"
+              f"</tr>"
+            )
+            js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
 
-    top5 = life_df.sort_values(sort_col, ascending=False).head(5)
-    bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
+        table_html = """
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f0fff0">
+              <th>Country</th><th>Seconds Left</th><th>Projected Death</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows}
+          </tbody>
+        </table>
+        """.replace("{rows}", "\n".join(rows))
+
+        js_array = "[" + ",".join(js_entries) + "]"
+        script = f"""
+        <script>
+          let entries = {js_array};
+          setInterval(()=>{
+            entries.forEach(e=>{
+              e.cnt--;
+              document.getElementById(e.id)
+                      .innerText = e.cnt.toLocaleString('fr-FR');
+            });
+          },1000);
+        </script>
+        """
+        return table_html + script
 
     colA, colB = st.columns(2)
     with colA:
-        st.write("Top 5 Countries by Life Expectancy")
-        st.dataframe(compute_projection(top5), use_container_width=True)
+        st.markdown("**Top 5 Countries by Life Expectancy**")
+        components.html(build_projection_html(top5, "top"), height=300)
     with colB:
-        st.write("Bottom 5 Countries by Life Expectancy")
-        st.dataframe(compute_projection(bot5), use_container_width=True)
+        st.markdown("**Bottom 5 Countries by Life Expectancy**")
+        components.html(build_projection_html(bot5, "bot"), height=300)
