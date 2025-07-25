@@ -50,7 +50,7 @@ col1, col2 = st.columns(2)
 with col1:
     country = st.selectbox("Select your country", sorted(life_df["Country"]))
     sex     = st.radio("Select your sex", ["Male", "Female"])
-    bdate   = st.date_input("Birth date", min_value=datetime(1900, 1, 1))
+    bdate   = st.date_input("Birth date", min_value=datetime(1, 1, 1900))
     btime   = st.time_input("Birth time")
     tz_name = st.selectbox("Time zone", pytz.common_timezones,
                            index=pytz.common_timezones.index("UTC"))
