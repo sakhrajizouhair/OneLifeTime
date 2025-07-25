@@ -8,14 +8,30 @@ import streamlit.components.v1 as components
 # Page configuration
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
-st.title("OneLifeTime")
-st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
+# --- Custom CSS for Visibility & Button Color ---
+st.markdown("""
+<style>
+  /* Ensure text is visible on dark backgrounds */
+  div[data-testid="stAppViewContainer"] {
+    color: white !important;
+  }
+  /* Make the primary button green */
+  div.stButton > button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+  }
+</style>
+""", unsafe_allow_html=True)
 
-# Fallback data if Excel load fails
+st.title("OneLifeTime")
+st.write("Calculate how many seconds you have lived and how many you have left.")
+
+# --- Fallback life‐expectancy data ---
 FALLBACK = pd.DataFrame({
-    "Country": ["USA", "Japan", "India", "Brazil", "Nigeria"],
-    "Females Life Expectancy": [81.1, 87.5, 70.7, 79.4, 65.2],
-    "Males Life Expectancy":   [76.1, 81.1, 68.2, 72.8, 62.7]
+    "Country": ["USA","Japan","India","Brazil","Nigeria"],
+    "Females Life Expectancy":[81.1,87.5,70.7,79.4,65.2],
+    "Males Life Expectancy":  [76.1,81.1,68.2,72.8,62.7]
 })
 
 @st.cache_data
@@ -37,11 +53,11 @@ def load_life_expectancy():
             col_map[col] = "Males Life Expectancy"
 
     df = df.rename(columns=col_map)
-    required = {"Country", "Females Life Expectancy", "Males Life Expectancy"}
+    required = {"Country","Females Life Expectancy","Males Life Expectancy"}
     if not required.issubset(df.columns):
         return FALLBACK
 
-    return df.loc[:, ["Country", "Females Life Expectancy", "Males Life Expectancy"]]
+    return df[["Country","Females Life Expectancy","Males Life Expectancy"]]
 
 life_df = load_life_expectancy()
 
@@ -49,24 +65,24 @@ life_df = load_life_expectancy()
 col1, col2 = st.columns(2)
 with col1:
     country = st.selectbox("Select your country", sorted(life_df["Country"]))
-    sex     = st.radio("Select your sex", ["Male", "Female"])
-    bdate   = st.date_input("Birth date", min_value=datetime(1900, 1, 1))
+    sex     = st.radio("Select your sex", ["Male","Female"])
+    bdate   = st.date_input("Birth date", min_value=datetime(1900,1,1))
     btime   = st.time_input("Birth time")
     tz_name = st.selectbox("Time zone", pytz.common_timezones,
                            index=pytz.common_timezones.index("UTC"))
 
 with col2:
-    row      = life_df[life_df["Country"] == country].iloc[0]
-    life_exp = (row["Males Life Expectancy"] if sex == "Male"
-                else row["Females Life Expectancy"])
+    row      = life_df[life_df["Country"]==country].iloc[0]
+    life_exp = (row["Males Life Expectancy"] 
+                if sex=="Male" else row["Females Life Expectancy"])
 
-# --- Main Calculation ---
+# --- Main Calculation Trigger ---
 if st.button("Calculate Life Deadline"):
     user_tz  = pytz.timezone(tz_name)
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
     now_dt   = datetime.now(user_tz)
 
-    # Compute projected death datetime
+    # Calculate projected death datetime
     years_int = int(life_exp)
     days_frac = (life_exp - years_int) * 365.25
     death_dt  = (birth_dt
@@ -76,10 +92,24 @@ if st.button("Calculate Life Deadline"):
     sec_lived = int((now_dt - birth_dt).total_seconds())
     sec_left  = int((death_dt - now_dt).total_seconds())
 
-    # Format seconds with spaces
-    styled_now = f"{sec_left:,}".replace(",", " ")
+    # --- Display Lived vs. Left ---
+    st.subheader("Your Life in Seconds") 
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric(
+            label="Seconds Lived",
+            value=f"{sec_lived:,}".replace(",", " ")
+        )
+        st.write(f"~{sec_lived/(365.25*24*3600):.2f} years")
+    with c2:
+        st.metric(
+            label="Seconds Left",
+            value=f"{sec_left:,}".replace(",", " ")
+        )
+        st.write(f"~{sec_left/(365.25*24*3600):.2f} years")
 
     # --- Global Live Countdown ---
+    styled_now = f"{sec_left:,}".replace(",", " ")
     countdown_html = f"""
     <div style="
       font-size:2.5em;
@@ -103,24 +133,22 @@ if st.button("Calculate Life Deadline"):
 
     # --- Projections for Other Countries ---
     st.subheader("What If…? Your Deadline in Other Countries")
-    sort_col = ("Males Life Expectancy" if sex == "Male"
-                else "Females Life Expectancy")
 
+    sort_col = ("Males Life Expectancy" 
+                if sex=="Male" else "Females Life Expectancy")
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
 
     def build_projection_html(df_slice, key_prefix):
         rows = []
         js_entries = []
-
         for idx, r in df_slice.iterrows():
             le = r[sort_col]
             dt = (birth_dt
                   + relativedelta.relativedelta(years=int(le))
-                  + timedelta(days=(le - int(le)) * 365.25))
+                  + timedelta(days=(le-int(le))*365.25))
             sl = int((dt - now_dt).total_seconds())
             cell_id = f"{key_prefix}_t{idx}"
-
             rows.append(
                 f"<tr>"
                   f"<td>{r['Country']}</td>"
@@ -142,7 +170,6 @@ if st.button("Calculate Life Deadline"):
           </tbody>
         </table>
         """
-
         js_array = "[" + ",".join(js_entries) + "]"
         script = f"""
         <script>
@@ -165,4 +192,3 @@ if st.button("Calculate Life Deadline"):
     with colB:
         st.markdown("**Bottom 5 Countries by Life Expectancy**")
         components.html(build_projection_html(bot5, "bot"), height=300)
-
