@@ -17,8 +17,8 @@ st.markdown("""
     color: white !important;
     border: none !important;
   }
-  /* Force all in‐app tables to show white text */
-  table, table th, table td {
+  /* force all table headers and cells to white */
+  table, th, td {
     color: white !important;
   }
 </style>
