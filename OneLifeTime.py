@@ -1,20 +1,24 @@
 import pandas as pd
+from pathlib import Path
 from datetime import datetime, timedelta
 from dateutil import relativedelta
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. Load and preprocess life‐expectancy data
+# 1. Robust loader: always resolves path relative to this script
 @st.cache_data
-def load_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+def load_data(filename: str) -> pd.DataFrame:
+    here = Path(__file__).parent
+    csv_path = here / filename
+    st.write("Loading CSV from:", csv_path)  # optional debug
+    df = pd.read_csv(csv_path)
     df = df.dropna(subset=['Life expectancy'])
     df = df.rename(columns={'Life expectancy': 'life_expectancy'})
     return df
 
 df = load_data('life_expectancy_by_country.csv')
 
-# 2. Build HTML + JS snippet for any slice of countries
+# 2. Build the HTML + JS snippet with white-text styling
 def build_projection_html(
     df_slice: pd.DataFrame,
     now_dt: datetime,
@@ -27,7 +31,7 @@ def build_projection_html(
 
     for idx, r in df_slice.iterrows():
         le = r[sort_col]
-        # exact death datetime = birth + integer years + fractional days
+        # compute exact death datetime
         dt = (
             birth_dt
             + relativedelta.relativedelta(years=int(le))
@@ -43,10 +47,9 @@ def build_projection_html(
   <td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>
 </tr>
 """)
-
         js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
 
-    # inline <style> forces all text to white
+    # inline style forces every table header & cell to white
     table_html = f"""
 <style>
   table {{
@@ -92,31 +95,24 @@ def build_projection_html(
   }}, 1000);
 </script>
 """
-
     return table_html + script
 
-# 3. Streamlit app layout
+# 3. Streamlit layout
 st.title("What If...? Your Deadline in Other Countries")
 
-# 3a. Ask user for birth date & time
 birth_date = st.date_input("Enter your date of birth", datetime(1990, 1, 1).date())
 birth_time = st.time_input("Enter your time of birth", datetime.now().time())
 birth_dt = datetime.combine(birth_date, birth_time)
-
 now_dt = datetime.now()
 
-# 3b. Prepare top 5 & bottom 5 slices
 sort_col = 'life_expectancy'
 df_top5 = df.sort_values(sort_col, ascending=False).head(5)
 df_bottom5 = df.sort_values(sort_col, ascending=True).head(5)
 
-# 4. Render Top 5
 st.header("Top 5 Countries by Life Expectancy")
 html_top = build_projection_html(df_top5, now_dt, birth_dt, sort_col, "top5")
 components.html(html_top, height=350)
 
-# 5. Render Bottom 5
 st.header("Bottom 5 Countries by Life Expectancy")
 html_bottom = build_projection_html(df_bottom5, now_dt, birth_dt, sort_col, "bottom5")
 components.html(html_bottom, height=350)
-
