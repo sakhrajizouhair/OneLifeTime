@@ -11,7 +11,7 @@ st.set_page_config(page_title="OneLifeTime", layout="wide")
 st.title("OneLifeTime")
 st.write("Calculate how many seconds you have left based on your birth data.")
 
-# --- Data Loading & Normalization ---
+# Fallback data if Excel load fails
 FALLBACK = pd.DataFrame({
     "Country": ["USA", "Japan", "India", "Brazil", "Nigeria"],
     "Females Life Expectancy": [81.1, 87.5, 70.7, 79.4, 65.2],
@@ -25,6 +25,7 @@ def load_life_expectancy():
     except Exception:
         return FALLBACK
 
+    # Normalize column names
     col_map = {}
     for col in df.columns:
         lower = col.strip().lower()
@@ -55,9 +56,9 @@ with col1:
                            index=pytz.common_timezones.index("UTC"))
 
 with col2:
-    row       = life_df[life_df["Country"] == country].iloc[0]
-    life_exp  = (row["Males Life Expectancy"] if sex == "Male"
-                 else row["Females Life Expectancy"])
+    row      = life_df[life_df["Country"] == country].iloc[0]
+    life_exp = (row["Males Life Expectancy"] if sex == "Male"
+                else row["Females Life Expectancy"])
 
 # --- Main Calculation ---
 if st.button("Calculate Life Deadline"):
@@ -65,17 +66,20 @@ if st.button("Calculate Life Deadline"):
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
     now_dt   = datetime.now(user_tz)
 
-    # Compute personal death datetime
-    years_int  = int(life_exp)
-    days_frac  = (life_exp - years_int) * 365.25
-    death_dt   = (birth_dt
-                  + relativedelta.relativedelta(years=years_int)
-                  + timedelta(days=days_frac))
-    sec_lived  = int((now_dt - birth_dt).total_seconds())
-    sec_left   = int((death_dt - now_dt).total_seconds())
+    # Compute projected death datetime
+    years_int = int(life_exp)
+    days_frac = (life_exp - years_int) * 365.25
+    death_dt  = (birth_dt
+                 + relativedelta.relativedelta(years=years_int)
+                 + timedelta(days=days_frac))
 
-    # --- Your Live Countdown ---
+    sec_lived = int((now_dt - birth_dt).total_seconds())
+    sec_left  = int((death_dt - now_dt).total_seconds())
+
+    # Format seconds with spaces
     styled_now = f"{sec_left:,}".replace(",", " ")
+
+    # --- Global Live Countdown ---
     countdown_html = f"""
     <div style="
       font-size:2.5em;
@@ -87,11 +91,11 @@ if st.button("Calculate Life Deadline"):
     " id="global_timer">{styled_now}</div>
     <script>
       let countG = {sec_left};
-      setInterval(()=>{
+      setInterval(()=>{{  
         countG--;
         document.getElementById('global_timer')
                 .innerText = countG.toLocaleString('fr-FR');
-      }, 1000);
+      }},1000);
     </script>
     """
     st.subheader("Live Countdown")
@@ -102,14 +106,13 @@ if st.button("Calculate Life Deadline"):
     sort_col = ("Males Life Expectancy" if sex == "Male"
                 else "Females Life Expectancy")
 
-    # Prepare top5 / bottom5 datasets
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
 
     def build_projection_html(df_slice, key_prefix):
-        """Returns an HTML table with dynamic countdown cells."""
         rows = []
         js_entries = []
+
         for idx, r in df_slice.iterrows():
             le = r[sort_col]
             dt = (birth_dt
@@ -117,16 +120,17 @@ if st.button("Calculate Life Deadline"):
                   + timedelta(days=(le - int(le)) * 365.25))
             sl = int((dt - now_dt).total_seconds())
             cell_id = f"{key_prefix}_t{idx}"
+
             rows.append(
-              f"<tr>"
-                f"<td>{r['Country']}</td>"
-                f"<td id='{cell_id}'>{str(sl).replace(',', ' ')}</td>"
-                f"<td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>"
-              f"</tr>"
+                f"<tr>"
+                  f"<td>{r['Country']}</td>"
+                  f"<td id='{cell_id}'>{str(sl).replace(',', ' ')}</td>"
+                  f"<td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>"
+                f"</tr>"
             )
             js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
 
-        table_html = """
+        table_html = f"""
         <table style="width:100%;border-collapse:collapse">
           <thead>
             <tr style="background:#f0fff0">
@@ -134,22 +138,22 @@ if st.button("Calculate Life Deadline"):
             </tr>
           </thead>
           <tbody>
-            {rows}
+            {''.join(rows)}
           </tbody>
         </table>
-        """.replace("{rows}", "\n".join(rows))
+        """
 
         js_array = "[" + ",".join(js_entries) + "]"
         script = f"""
         <script>
           let entries = {js_array};
-          setInterval(()=>{
-            entries.forEach(e=>{
+          setInterval(()=>{{  
+            entries.forEach(e=>{{  
               e.cnt--;
               document.getElementById(e.id)
                       .innerText = e.cnt.toLocaleString('fr-FR');
-            });
-          },1000);
+            }});
+          }},1000);
         </script>
         """
         return table_html + script
@@ -161,3 +165,4 @@ if st.button("Calculate Life Deadline"):
     with colB:
         st.markdown("**Bottom 5 Countries by Life Expectancy**")
         components.html(build_projection_html(bot5, "bot"), height=300)
+
