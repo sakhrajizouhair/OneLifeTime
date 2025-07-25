@@ -1,120 +1,202 @@
+import streamlit as st
 import pandas as pd
-from pathlib import Path
 from datetime import datetime, timedelta
 from dateutil import relativedelta
-import streamlit as st
+import pytz
 import streamlit.components.v1 as components
 
-# 1. Robust loader: resolves path relative to this script and reads Excel
-@st.cache_data
-def load_data(filename: str) -> pd.DataFrame:
-    here = Path(__file__).parent
-    file_path = here / filename
-    st.write("Loading data from:", file_path)   # optional debug
-    # read the first sheet by default
-    df = pd.read_excel(file_path)
-    df = df.dropna(subset=['Life expectancy'])
-    df = df.rename(columns={'Life expectancy': 'life_expectancy'})
-    return df
+# Page configuration
+st.set_page_config(page_title="OneLifeTime", layout="wide")
 
-# replace with your actual Excel filename
-df = load_data('world-lifeexpectancy.xlsx')
-
-# 2. Build the HTML + JS snippet with white text styling
-def build_projection_html(
-    df_slice: pd.DataFrame,
-    now_dt: datetime,
-    birth_dt: datetime,
-    sort_col: str,
-    key_prefix: str
-) -> str:
-    rows = []
-    js_entries = []
-
-    for idx, r in df_slice.iterrows():
-        le = r[sort_col]
-        death_dt = (
-            birth_dt
-            + relativedelta.relativedelta(years=int(le))
-            + timedelta(days=(le - int(le)) * 365.25)
-        )
-        seconds_left = int((death_dt - now_dt).total_seconds())
-        cell_id = f"{key_prefix}_t{idx}"
-
-        rows.append(f"""
-<tr>
-  <td>{r['Country']}</td>
-  <td id="{cell_id}">{seconds_left}</td>
-  <td>{death_dt.strftime('%Y-%m-%d %H:%M:%S')}</td>
-</tr>
-""")
-        js_entries.append(f"{{id:'{cell_id}',cnt:{seconds_left}}}")
-
-    table_html = f"""
+# --- Global CSS for Button & Table Text Colors ---
+st.markdown("""
 <style>
-  table {{
-    width: 100%;
-    border-collapse: collapse;
-    color: white;
-  }}
-  thead th {{
-    background: #444;
-    padding: 8px;
-    color: white;
-  }}
-  td {{
-    padding: 8px;
-    color: white;
-    border-top: 1px solid rgba(255,255,255,0.2);
-  }}
+  /* Make the primary button green with black text */
+  div.stButton > button {
+    background-color: #4CAF50 !important;
+    color: black !important;
+    border: none !important;
+  }
+  /* Force all in‐app tables to show white text */
+  table, table th, table td {
+    color: white !important;
+  }
 </style>
-<table>
-  <thead>
-    <tr>
-      <th>Country</th>
-      <th>Seconds Left</th>
-      <th>Projected Death</th>
-    </tr>
-  </thead>
-  <tbody>
-    {''.join(rows)}
-  </tbody>
-</table>
-"""
+""", unsafe_allow_html=True)
 
-    js_array = "[" + ",".join(js_entries) + "]"
-    script = f"""
-<script>
-  let entries = {js_array};
-  setInterval(() => {{
-    entries.forEach(e => {{
-      e.cnt--;
-      document.getElementById(e.id)
-              .innerText = e.cnt.toLocaleString('fr-FR');
-    }});
-  }}, 1000);
-</script>
-"""
-    return table_html + script
+st.title("OneLifeTime")
+st.write("Calculate how many seconds you have lived and how many you have left.")
 
-# 3. Streamlit app layout
-st.title("What If...? Your Deadline in Other Countries")
+# --- Fallback life‐expectancy data ---
+FALLBACK = pd.DataFrame({
+    "Country": ["USA","Japan","India","Brazil","Nigeria"],
+    "Females Life Expectancy":[81.1,87.5,70.7,79.4,65.2],
+    "Males Life Expectancy":  [76.1,81.1,68.2,72.8,62.7]
+})
 
-birth_date = st.date_input("Enter your date of birth",
-                           datetime(1990, 1, 1).date())
-birth_time = st.time_input("Enter your time of birth",
-                           datetime.now().time())
-birth_dt = datetime.combine(birth_date, birth_time)
-now_dt = datetime.now()
+@st.cache_data
+def load_life_expectancy():
+    try:
+        df = pd.read_excel("world-lifeexpectancy.xlsx")
+    except:
+        return FALLBACK
 
-sort_col = 'life_expectancy'
-df_top5 = df.sort_values(sort_col, ascending=False).head(5)
-df_bottom5 = df.sort_values(sort_col, ascending=True).head(5)
+    col_map = {}
+    for col in df.columns:
+        lower = col.strip().lower()
+        if "country" in lower:
+            col_map[col] = "Country"
+        elif "female" in lower and "expectancy" in lower:
+            col_map[col] = "Females Life Expectancy"
+        elif "male" in lower and "expectancy" in lower:
+            col_map[col] = "Males Life Expectancy"
 
-st.header("Top 5 Countries by Life Expectancy")
-html_top = build_projection_html(df_top5, now_dt, birth_dt, sort_col, "top5")
-components.html(html_top, height=350)
+    df = df.rename(columns=col_map)
+    req = {"Country","Females Life Expectancy","Males Life Expectancy"}
+    if not req.issubset(df.columns):
+        return FALLBACK
 
-st.header("Bottom 5 Countries by Life Expectancy")
-html_bottom = build_projection_html(df_bottom5, now_dt, birth_dt, sort_col, "bottom5")
-components.html(html_bottom, height=350)
+    return df[["Country","Females Life Expectancy","Males Life Expectancy"]]
+
+life_df = load_life_expectancy()
+
+# --- User Inputs ---
+col1, col2 = st.columns(2)
+with col1:
+    country = st.selectbox("Select your country", sorted(life_df["Country"]))
+    sex     = st.radio("Select your sex", ["Male","Female"])
+    bdate   = st.date_input("Birth date", min_value=datetime(1900,1,1))
+    btime   = st.time_input("Birth time")
+    tz_name = st.selectbox("Time zone", pytz.common_timezones,
+                           index=pytz.common_timezones.index("UTC"))
+
+with col2:
+    row      = life_df[life_df["Country"]==country].iloc[0]
+    life_exp = row["Males Life Expectancy"] if sex=="Male" else row["Females Life Expectancy"]
+
+# --- Main Calculation ---
+if st.button("Calculate Life Deadline"):
+    user_tz  = pytz.timezone(tz_name)
+    birth_dt = user_tz.localize(datetime.combine(bdate, btime))
+    now_dt   = datetime.now(user_tz)
+
+    # Projected death datetime
+    years_int = int(life_exp)
+    days_frac = (life_exp - years_int) * 365.25
+    death_dt  = (birth_dt
+                 + relativedelta.relativedelta(years=years_int)
+                 + timedelta(days=days_frac))
+
+    sec_lived = int((now_dt - birth_dt).total_seconds())
+    sec_left  = int((death_dt - now_dt).total_seconds())
+
+    # --- Display Lived vs. Left ---
+    st.subheader("Your Life in Seconds") 
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Seconds Lived", f"{sec_lived:,}".replace(",", " "))
+        st.write(f"~{sec_lived/(365.25*24*3600):.2f} years")
+    with c2:
+        st.metric("Seconds Left", f"{sec_left:,}".replace(",", " "))
+        st.write(f"~{sec_left/(365.25*24*3600):.2f} years")
+
+    # --- Global Live Countdown ---
+    styled_now = f"{sec_left:,}".replace(",", " ")
+    countdown_html = f"""
+    <div style="
+      font-size:2.5em;
+      color: green;
+      background-color: #e6ffe6;
+      padding:10px;
+      border-radius:8px;
+      text-align:center;
+    " id="global_timer">{styled_now}</div>
+    <script>
+      let countG = {sec_left};
+      setInterval(()=>{{  
+        countG--;
+        document.getElementById('global_timer')
+                .innerText = countG.toLocaleString('fr-FR');
+      }},1000);
+    </script>
+    """
+    st.subheader("Live Countdown")
+    components.html(countdown_html, height=120)
+
+    # --- Projections for Other Countries ---
+    st.subheader("What If…? Your Deadline in Other Countries")
+    sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
+    top5 = life_df.sort_values(sort_col, ascending=False).head(5)
+    bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
+
+    def build_projection_html(df_slice, key_prefix):
+        rows = []
+        js_entries = []
+        for idx, r in df_slice.iterrows():
+            le = r[sort_col]
+            dt = (birth_dt
+                  + relativedelta.relativedelta(years=int(le))
+                  + timedelta(days=(le-int(le))*365.25))
+            sl = int((dt - now_dt).total_seconds())
+            cell_id = f"{key_prefix}_t{idx}"
+            rows.append(
+                f"<tr>"
+                  f"<td>{r['Country']}</td>"
+                  f"<td id='{cell_id}'>{str(sl).replace(',', ' ')}</td>"
+                  f"<td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>"
+                f"</tr>"
+            )
+            js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
+
+        # Inline style to force white text in this mini‐HTML
+        table_html = f"""
+        <style>
+          table {{
+            width: 100%;
+            border-collapse: collapse;
+            color: white !important;
+          }}
+          thead th {{
+            background: #444;
+            color: white !important;
+            padding: 8px;
+          }}
+          td {{
+            color: white !important;
+            padding: 8px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+          }}
+        </style>
+        <table>
+          <thead>
+            <tr>
+              <th>Country</th><th>Seconds Left</th><th>Projected Death</th>
+            </tr>
+          </thead>
+          <tbody>
+            {''.join(rows)}
+          </tbody>
+        </table>
+        """
+        js_array = "[" + ",".join(js_entries) + "]"
+        script = f"""
+        <script>
+          let entries = {js_array};
+          setInterval(()=>{{  
+            entries.forEach(e=>{{  
+              e.cnt--;
+              document.getElementById(e.id)
+                      .innerText = e.cnt.toLocaleString('fr-FR');
+            }});
+          }},1000);
+        </script>
+        """
+        return table_html + script
+
+    colA, colB = st.columns(2)
+    with colA:
+        st.markdown("**Top 5 Countries by Life Expectancy**")
+        components.html(build_projection_html(top5, "top"), height=300)
+    with colB:
+        st.markdown("**Bottom 5 Countries by Life Expectancy**")
+        components.html(build_projection_html(bot5, "bot"), height=300)
