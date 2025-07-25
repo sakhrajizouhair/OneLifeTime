@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
 st.title("OneLifeTime")
-st.write("Calculate how many seconds you have left based on your birth data.")
+st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
 
 # Fallback data if Excel load fails
 FALLBACK = pd.DataFrame({
