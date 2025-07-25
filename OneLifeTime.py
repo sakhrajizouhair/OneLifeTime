@@ -8,18 +8,18 @@ import streamlit.components.v1 as components
 # Page configuration
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
-# --- Custom CSS for Visibility & Button Color ---
+# --- Global CSS for Button & Table Text Colors ---
 st.markdown("""
 <style>
-  /* Ensure text is visible on dark backgrounds */
-  div[data-testid="stAppViewContainer"] {
-    color: white !important;
-  }
-  /* Make the primary button green */
+  /* Make the primary button green with black text */
   div.stButton > button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
+    background-color: #4CAF50 !important;
+    color: black !important;
+    border: none !important;
+  }
+  /* Force all in‐app tables to show white text */
+  table, table th, table td {
+    color: white !important;
   }
 </style>
 """, unsafe_allow_html=True)
@@ -38,10 +38,9 @@ FALLBACK = pd.DataFrame({
 def load_life_expectancy():
     try:
         df = pd.read_excel("world-lifeexpectancy.xlsx")
-    except Exception:
+    except:
         return FALLBACK
 
-    # Normalize column names
     col_map = {}
     for col in df.columns:
         lower = col.strip().lower()
@@ -53,8 +52,8 @@ def load_life_expectancy():
             col_map[col] = "Males Life Expectancy"
 
     df = df.rename(columns=col_map)
-    required = {"Country","Females Life Expectancy","Males Life Expectancy"}
-    if not required.issubset(df.columns):
+    req = {"Country","Females Life Expectancy","Males Life Expectancy"}
+    if not req.issubset(df.columns):
         return FALLBACK
 
     return df[["Country","Females Life Expectancy","Males Life Expectancy"]]
@@ -76,13 +75,13 @@ with col2:
     life_exp = (row["Males Life Expectancy"] 
                 if sex=="Male" else row["Females Life Expectancy"])
 
-# --- Main Calculation Trigger ---
+# --- Main Calculation ---
 if st.button("Calculate Life Deadline"):
     user_tz  = pytz.timezone(tz_name)
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
     now_dt   = datetime.now(user_tz)
 
-    # Calculate projected death datetime
+    # Projected death datetime
     years_int = int(life_exp)
     days_frac = (life_exp - years_int) * 365.25
     death_dt  = (birth_dt
@@ -96,16 +95,10 @@ if st.button("Calculate Life Deadline"):
     st.subheader("Your Life in Seconds") 
     c1, c2 = st.columns(2)
     with c1:
-        st.metric(
-            label="Seconds Lived",
-            value=f"{sec_lived:,}".replace(",", " ")
-        )
+        st.metric("Seconds Lived", f"{sec_lived:,}".replace(",", " "))
         st.write(f"~{sec_lived/(365.25*24*3600):.2f} years")
     with c2:
-        st.metric(
-            label="Seconds Left",
-            value=f"{sec_left:,}".replace(",", " ")
-        )
+        st.metric("Seconds Left", f"{sec_left:,}".replace(",", " "))
         st.write(f"~{sec_left/(365.25*24*3600):.2f} years")
 
     # --- Global Live Countdown ---
@@ -133,9 +126,8 @@ if st.button("Calculate Life Deadline"):
 
     # --- Projections for Other Countries ---
     st.subheader("What If…? Your Deadline in Other Countries")
-
-    sort_col = ("Males Life Expectancy" 
-                if sex=="Male" else "Females Life Expectancy")
+    sort_col = ("Males Life Expectancy" if sex=="Male" 
+                else "Females Life Expectancy")
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
 
@@ -159,9 +151,9 @@ if st.button("Calculate Life Deadline"):
             js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
 
         table_html = f"""
-        <table style="width:100%;border-collapse:collapse">
+        <table style="width:100%;border-collapse:collapse;">
           <thead>
-            <tr style="background:#f0fff0">
+            <tr style="background:#444;">
               <th>Country</th><th>Seconds Left</th><th>Projected Death</th>
             </tr>
           </thead>
