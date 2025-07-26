@@ -263,7 +263,6 @@ if st.button("Calculate My Life Time"):
     st.markdown("---")
     st.write(f"👥 Total Visitors Who Clicked: `{current + 1}`")
 
-    )
-
+    
     # --- Footer Text ---
     st.markdown("---")
