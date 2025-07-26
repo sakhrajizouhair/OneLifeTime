@@ -4,6 +4,13 @@ from datetime import datetime, timedelta
 from dateutil import relativedelta
 import pytz
 import streamlit.components.v1 as components
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+client = gspread.authorize(creds)
+
 
 # Page configuration
 st.set_page_config(page_title="OneLifeTime", layout="wide")
@@ -97,12 +104,7 @@ with col2:
 # --- Main Calculation ---
 if st.button("Calculate My Life Time"):
     # === Track clicks in Google Sheets ===
-    import gspread
-    from oauth2client.service_account import ServiceAccountCredentials
-
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("your-creds.json", scope)
-    client = gspread.authorize(creds)
+    
 
     sheet = client.open("OneLifeClicks").sheet1
     current = int(sheet.acell("A1").value)
