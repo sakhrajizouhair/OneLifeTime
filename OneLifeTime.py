@@ -255,8 +255,10 @@ if st.button("Calculate My Life Time"):
   # --- Footer Text ---
     st.markdown("---")
     st.markdown(
-        "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
-        unsafe_allow_html=True
+    "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
+    unsafe_allow_html=True
+)
+
 
     st.markdown("---")
     st.write(f"👥 Total Visitors Who Clicked: `{current + 1}`")
