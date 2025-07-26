@@ -55,17 +55,11 @@ st.title("OneLifeTime")
 st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
 
 
-
 # --- Fallback life‐expectancy data ---
-
 FALLBACK = pd.DataFrame({
-
-    "Country": ["USA","Japan","India","Brazil","Nigeria"],
-
-    "Females Life Expectancy":[81.1,87.5,70.7,79.4,65.2],
-
-    "Males Life Expectancy":  [76.1,81.1,68.2,72.8,62.7]
-
+    "Country": ["USA","Japan","India","Brazil","Nigeria"],
+    "Females Life Expectancy":[81.1,87.5,70.7,79.4,65.2],
+    "Males Life Expectancy":  [76.1,81.1,68.2,72.8,62.7]
 })
 
 
