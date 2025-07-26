@@ -65,16 +65,11 @@ FALLBACK = pd.DataFrame({
 
 
 @st.cache_data
-
 def load_life_expectancy():
-
-    try:
-
-        df = pd.read_excel("world-lifeexpectancy.xlsx")
-
-    except:
-
-        return FALLBACK
+    try:
+        df = pd.read_excel("world-lifeexpectancy.xlsx")
+    except:
+        return FALLBACK
 
 
 
