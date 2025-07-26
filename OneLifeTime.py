@@ -4,21 +4,6 @@ from datetime import datetime, timedelta
 from dateutil import relativedelta
 import pytz
 import streamlit.components.v1 as components
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import gspread
-from google.oauth2.service_account import Credentials
-
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(creds)
-
-
-
-creds_dict = st.secrets["gcp_service_account"]
-creds = Credentials.from_service_account_info(dict(creds_dict))
-client = gspread.authorize(creds)
-
 
 # Page configuration
 st.set_page_config(page_title="OneLifeTime", layout="wide")
@@ -111,15 +96,6 @@ with col2:
 
 # --- Main Calculation ---
 if st.button("Calculate My Life Time"):
-    # === Track clicks in Google Sheets ===
-    
-
-    sheet = client.open("OneLifeClicks").sheet1
-    current = int(sheet.acell("A1").value)
-    sheet.update_acell("A1", str(current + 1))
-
-    # ← your existing code continues below unchanged...
-
     # timezone-aware birth & now
     user_tz  = pytz.timezone(tz_name)
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
@@ -205,8 +181,6 @@ if st.button("Calculate My Life Time"):
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
 
-  
-
     def build_projection_html(df_slice, key_prefix):
         rows, js_entries = [], []
         for idx, r in df_slice.iterrows():
@@ -265,14 +239,9 @@ if st.button("Calculate My Life Time"):
   # --- Footer Text ---
     st.markdown("---")
     st.markdown(
-    "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
-    unsafe_allow_html=True
-)
+        "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
+        unsafe_allow_html=True
+    )
 
-
-    st.markdown("---")
-    st.write(f"👥 Total Visitors Who Clicked: `{current + 1}`")
-
-    
     # --- Footer Text ---
     st.markdown("---")
