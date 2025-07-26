@@ -74,22 +74,14 @@ def load_life_expectancy():
 
 
     col_map = {}
-
-    for col in df.columns:
-
-        lower = col.strip().lower()
-
-        if "country" in lower:
-
-            col_map[col] = "Country"
-
-        elif "female" in lower and "expectancy" in lower:
-
-            col_map[col] = "Females Life Expectancy"
-
-        elif "male" in lower and "expectancy" in lower:
-
-            col_map[col] = "Males Life Expectancy"
+    for col in df.columns:
+        lower = col.strip().lower()
+        if "country" in lower:
+            col_map[col] = "Country"
+        elif "female" in lower and "expectancy" in lower:
+            col_map[col] = "Females Life Expectancy"
+        elif "male" in lower and "expectancy" in lower:
+            col_map[col] = "Males Life Expectancy"
 
 
 
