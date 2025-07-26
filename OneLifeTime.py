@@ -96,6 +96,20 @@ with col2:
 
 # --- Main Calculation ---
 if st.button("Calculate My Life Time"):
+    # === Track clicks in Google Sheets ===
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("your-creds.json", scope)
+    client = gspread.authorize(creds)
+
+    sheet = client.open("OneLifeClicks").sheet1
+    current = int(sheet.acell("A1").value)
+    sheet.update_acell("A1", str(current + 1))
+
+    # ← your existing code continues below unchanged...
+
     # timezone-aware birth & now
     user_tz  = pytz.timezone(tz_name)
     birth_dt = user_tz.localize(datetime.combine(bdate, btime))
@@ -180,6 +194,8 @@ if st.button("Calculate My Life Time"):
     sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
     top5 = life_df.sort_values(sort_col, ascending=False).head(5)
     bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
+
+  
 
     def build_projection_html(df_slice, key_prefix):
         rows, js_entries = [], []
