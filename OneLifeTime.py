@@ -1,135 +1,247 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-import time
-import os
+from datetime import datetime, timedelta
+from dateutil import relativedelta
+import pytz
+import streamlit.components.v1 as components
 
 # Page configuration
 st.set_page_config(page_title="OneLifeTime", layout="wide")
 
-# Title and description
+# --- Global CSS for Button & Table Text Colors ---
+st.markdown("""
+<style>
+  /* Make the primary button green with gray text */
+  div.stButton > button {
+    background-color: #4CAF50 !important;
+    color: black !important;
+    border: none !important;
+  }
+  /* Force all in‐app tables to show gray text */
+  table, table th, table td {
+    color: gray !important;
+  }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("OneLifeTime")
-st.write("Calculate how many seconds you have left.")
-st.checkbox("Show live countdown for 10 seconds")
+st.write("Ever wondered how many seconds you might have left to live? OneLifeTime is a playful yet thought-provoking web app that gives you a live countdown.")
 
-# Load life expectancy data
+# --- Fallback life‐expectancy data ---
+FALLBACK = pd.DataFrame({
+    "Country": ["USA","Japan","India","Brazil","Nigeria"],
+    "Females Life Expectancy":[81.1,87.5,70.7,79.4,65.2],
+    "Males Life Expectancy":  [76.1,81.1,68.2,72.8,62.7]
+})
+
 @st.cache_data
-def load_data():
+def load_life_expectancy():
     try:
-        file_path = "world-lifeexpectancy.xlsx"
-        df = pd.read_excel(file_path)
-        # Assuming the columns are named as you mentioned
-        # Rename if necessary to match your actual column names
-        if 'Country' not in df.columns:
-            # Try to identify the country column
-            country_col = [col for col in df.columns if 'country' in col.lower()]
-            if country_col:
-                df = df.rename(columns={country_col[0]: 'Country'})
-        
-        # Similarly for life expectancy columns
-        female_col = [col for col in df.columns if 'female' in col.lower()]
-        male_col = [col for col in df.columns if 'male' in col.lower()]
-        
-        if female_col:
-            df = df.rename(columns={female_col[0]: 'Females Life Expectancy'})
-        if male_col:
-            df = df.rename(columns={male_col[0]: 'Males Life Expectancy'})
-            
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        # Provide fallback data in case the file can't be loaded
-        data = {
-            "Country": ["USA", "Japan", "India", "Brazil", "Nigeria"],
-            "Females Life Expectancy": [81.1, 87.5, 70.7, 79.4, 65.2],
-            "Males Life Expectancy": [76.1, 81.1, 68.2, 72.8, 62.7]
-        }
-        return pd.DataFrame(data)
+        df = pd.read_excel("world-lifeexpectancy.xlsx")
+    except:
+        return FALLBACK
 
-life_expectancy_df = load_data()
+    col_map = {}
+    for col in df.columns:
+        lower = col.strip().lower()
+        if "country" in lower:
+            col_map[col] = "Country"
+        elif "female" in lower and "expectancy" in lower:
+            col_map[col] = "Females Life Expectancy"
+        elif "male" in lower and "expectancy" in lower:
+            col_map[col] = "Males Life Expectancy"
 
-# User inputs
+    df = df.rename(columns=col_map)
+    req = {"Country","Females Life Expectancy","Males Life Expectancy"}
+    if not req.issubset(df.columns):
+        return FALLBACK
+
+    return df[["Country","Females Life Expectancy","Males Life Expectancy"]]
+
+life_df = load_life_expectancy()
+
+# --- User Inputs ---
 col1, col2 = st.columns(2)
-
 with col1:
-    # Country selection
-    countries = sorted(life_expectancy_df["Country"].unique())
-    selected_country = st.selectbox("Select your country", countries)
-    
-    # Sex selection
-    sex = st.radio("Select your sex", ["Male", "Female"])
-    
-    # Birth date and time
-    birth_date = st.date_input("Birth date", min_value=datetime(1900, 1, 1))
-    birth_time = st.time_input("Birth time")
+    country = st.selectbox("Select your country", sorted(life_df["Country"]))
+    sex     = st.radio("Select your sex", ["Male","Female"])
+    bdate   = st.date_input("Birth date", min_value=datetime(1900,1,1))
+    btime   = st.time_input("Birth time")
+    tz_name = st.selectbox("Time zone", pytz.common_timezones,
+                            index=pytz.common_timezones.index("UTC"))
+
+    # --- New Determinants ---
+    gym         = st.radio("Do you do gym?", ["No","Yes"], horizontal=True)
+    gym_since = None
+    if gym == "Yes":
+        gym_since = st.selectbox(
+            "Gym since:",
+            ["Less than a year", "Between 1 and 3 years", "More than 3 years"]
+        )
+
+    smoke         = st.radio("Do you smoke?", ["No","Yes"], horizontal=True)
+    smoke_since = None
+    if smoke == "Yes":
+        smoke_since = st.selectbox(
+            "Smoking since:",
+            ["Less than a year", "Between 1 and 5 years",
+             "Between 5 and 10 years", "More than 10 years"]
+        )
+
+    cancer = st.radio("Do you have cancer?", ["No","Yes"], horizontal=True)
 
 with col2:
-    # Display life expectancy for selected country
-    country_data = life_expectancy_df[life_expectancy_df["Country"] == selected_country].iloc[0]
-    
-    if sex == "Male":
-        life_expectancy = country_data["Males Life Expectancy"]
-        st.info(f"Life expectancy for males in {selected_country}: {life_expectancy} years")
-    else:
-        life_expectancy = country_data["Females Life Expectancy"]
-        st.info(f"Life expectancy for females in {selected_country}: {life_expectancy} years")
+    row      = life_df[life_df["Country"]==country].iloc[0]
+    life_exp = row["Males Life Expectancy"] if sex=="Male" else row["Females Life Expectancy"]
 
-# Calculate when button is pressed
-if st.button("Calculate Life Deadline"):
-    # Combine birth date and time
-    birth_datetime = datetime.combine(birth_date, birth_time)
-    current_datetime = datetime.now()
-    
-    # Calculate seconds lived
-    seconds_lived = (current_datetime - birth_datetime).total_seconds()
-    
-    # Calculate seconds left
-    seconds_in_year = 365.25 * 24 * 60 * 60
-    total_seconds = life_expectancy * seconds_in_year
-    seconds_left = total_seconds - seconds_lived
-    
-    # Display results
+# --- Main Calculation ---
+if st.button("Calculate My Life Time"):
+    # timezone-aware birth & now
+    user_tz  = pytz.timezone(tz_name)
+    birth_dt = user_tz.localize(datetime.combine(bdate, btime))
+    now_dt   = datetime.now(user_tz)
+
+    # adjust life expectancy
+    adjust = 0
+
+    # gym adjustment
+    if gym == "Yes":
+        if gym_since == "Less than a year":
+            adjust += 1
+        elif gym_since == "Between 1 and 3 years":
+            adjust += 4
+        else:
+            adjust += 7
+
+    # smoking adjustment
+    if smoke == "Yes":
+        if smoke_since == "Less than a year":
+            adjust -= 1
+        elif smoke_since == "Between 1 and 5 years":
+            adjust -= 3
+        elif smoke_since == "Between 5 and 10 years":
+            adjust -= 5
+        else:
+            adjust -= 10
+
+    # cancer adjustment
+    if cancer == "Yes":
+        adjust -= 8
+
+    effective_le = life_exp + adjust
+
+    # Projected death datetime
+    years_int = int(effective_le)
+    days_frac = (effective_le - years_int) * 365.25
+    death_dt  = (
+        birth_dt
+        + relativedelta.relativedelta(years=years_int)
+        + timedelta(days=days_frac)
+    )
+
+    sec_lived = int((now_dt - birth_dt).total_seconds())
+    sec_left  = int((death_dt - now_dt).total_seconds())
+
+    # --- Display Lived vs. Left ---
     st.subheader("Your Life in Seconds")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("Seconds Lived", f"{seconds_lived:,.0f}")
-        years_lived = seconds_lived / seconds_in_year
-        st.write(f"That's approximately {years_lived:.2f} years")
-        
-    with col2:
-        st.metric("Seconds Left", f"{seconds_left:,.0f}")
-        years_left = seconds_left / seconds_in_year
-        st.write(f"That's approximately {years_left:.2f} years")
-    
-    # Create a countdown
-    st.subheader("Your Life Countdown")
-    countdown_placeholder = st.empty()
-    
-    # Display top and bottom 10 countries
-    st.subheader("Life Expectancy Comparison")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("Top 10 Countries by Life Expectancy")
-        if sex == "Male":
-            top_countries = life_expectancy_df.sort_values("Males Life Expectancy", ascending=False).head(10)
-            st.dataframe(top_countries[["Country", "Males Life Expectancy"]])
-        else:
-            top_countries = life_expectancy_df.sort_values("Females Life Expectancy", ascending=False).head(10)
-            st.dataframe(top_countries[["Country", "Females Life Expectancy"]])
-    
-    with col2:
-        st.write("Bottom 10 Countries by Life Expectancy")
-        if sex == "Male":
-            bottom_countries = life_expectancy_df.sort_values("Males Life Expectancy").head(10)
-            st.dataframe(bottom_countries[["Country", "Males Life Expectancy"]])
-        else:
-            bottom_countries = life_expectancy_df.sort_values("Females Life Expectancy").head(10)
-            st.dataframe(bottom_countries[["Country", "Females Life Expectancy"]])
-            
-    # Live countdown (will update for a few seconds as demo)
-    for i in range(10):
-        seconds_left -= 1
-        countdown_placeholder.metric("Seconds Left (Live)", f"{seconds_left:,.0f}")
-        time.sleep(1)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Seconds Lived", f"{sec_lived:,}".replace(",", " "))
+        st.write(f"~{sec_lived/(365.25*24*3600):.2f} years")
+    with c2:
+        st.metric("Seconds Left", f"{sec_left:,}".replace(",", " "))
+        st.write(f"~{sec_left/(365.25*24*3600):.2f} years")
+
+    # --- Global Live Countdown ---
+    styled_now = f"{sec_left:,}".replace(",", " ")
+    countdown_html = f"""
+    <div style="
+      font-size:2.5em;
+      color: green;
+      background-color: #e6ffe6;
+      padding:10px;
+      border-radius:8px;
+      text-align:center;
+    " id="global_timer">{styled_now}</div>
+    <script>
+      let countG = {sec_left};
+      setInterval(()=>{{
+        countG--;
+        document.getElementById('global_timer')
+                 .innerText = countG.toLocaleString('fr-FR');
+      }},1000);
+    </script>
+    """
+    st.subheader("Live Countdown")
+    components.html(countdown_html, height=120)
+
+    # --- Projections for Other Countries ---
+    st.subheader("What If…? You were in the EXTREME sides of the world!")
+    sort_col = "Males Life Expectancy" if sex=="Male" else "Females Life Expectancy"
+    top5 = life_df.sort_values(sort_col, ascending=False).head(5)
+    bot5 = life_df.sort_values(sort_col, ascending=True).head(5)
+
+    def build_projection_html(df_slice, key_prefix):
+        rows, js_entries = [], []
+        for idx, r in df_slice.iterrows():
+            le = r[sort_col] + adjust
+            dt = (
+                birth_dt
+                + relativedelta.relativedelta(years=int(le))
+                + timedelta(days=(le-int(le))*365.25)
+            )
+            sl = int((dt - now_dt).total_seconds())
+            cell_id = f"{key_prefix}_t{idx}"
+            rows.append(
+                f"<tr>"
+                  f"<td>{r['Country']}</td>"
+                  f"<td id='{cell_id}'>{sl:,}</td>"
+                  f"<td>{dt.strftime('%Y-%m-%d %H:%M:%S')}</td>"
+                f"</tr>"
+            )
+            js_entries.append(f"{{id:'{cell_id}',cnt:{sl}}}")
+
+        html = f"""
+        <style>
+          table {{width:100%;border-collapse:collapse;color:black!important;}}
+          thead th {{background:#444;padding:8px;color:gray!important;}}
+          td {{padding:8px;border-top:1px solid rgba(255,255,255,0.2);}}
+        </style>
+        <table>
+          <thead>
+            <tr><th>Country</th><th>Seconds Left</th><th>Projected Death</th></tr>
+          </thead>
+          <tbody>
+            {''.join(rows)}
+          </tbody>
+        </table>
+        <script>
+          let entries = [{','.join(js_entries)}];
+          setInterval(()=>{{
+            entries.forEach(e=>{{
+              e.cnt--;
+              document.getElementById(e.id)
+                          .innerText = e.cnt.toLocaleString('fr-FR');
+            }});
+          }},1000);
+        </script>
+        """
+        return html
+
+    colA, colB = st.columns(2)
+    with colA:
+        st.markdown("**Top 5 Countries**")
+        components.html(build_projection_html(top5, "top"), height=300)
+    with colB:
+        st.markdown("**Bottom 5 Countries**")
+        components.html(build_projection_html(bot5, "bot"), height=300)
+
+  # --- Footer Text ---
+    st.markdown("---")
+    st.markdown(
+        "<p style='text-align:center; font-size:12px; color:gray;'>EmersionDesk © 2025</p>",
+        unsafe_allow_html=True
+    )
+
+    # --- Footer Text ---
+    st.markdown("---")
